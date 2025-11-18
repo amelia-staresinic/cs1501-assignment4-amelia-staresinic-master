@@ -1,5 +1,6 @@
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
@@ -17,7 +18,6 @@ public class PittGuard {
         PittGuard pg = new PittGuard();
         String mode = null;
         String fileName = null;
-        String server = null;
         char src = ' ';
         char dst = ' ';
         //default is false
@@ -37,7 +37,7 @@ public class PittGuard {
                     dst = args[++i].charAt(0);
                     break;
                 case "--server":
-                    server = args[++i];
+                    src = args[++i].charAt(0);
                     break;
                 case "--directed":
                     pg.directed = true;
@@ -76,13 +76,27 @@ public class PittGuard {
             }
         }
         else if(mode.equals("patch")){
-            if(server == null){
-                System.err.println("Error: Missing arguments");
+            if(src == ' '){
+                System.err.println("Error: server not specified");
                 System.exit(1);
             }
             else{
-                pg.readFile(fileName); //add parsing of latency and encryption to this
-                //dijstrkas shortest path
+                pg.readFile(fileName);
+                if(pg.vertices.get(src)){
+                    System.err.println("Error: server vulnerable");
+                    System.exit(1);
+                }
+                double max = 0;
+                for(Map.Entry<Character, Boolean> entry : pg.vertices.entrySet()){
+                    //tests paths to all vulnerable destinations
+                    if(entry.getValue()){
+                        double dist = pg.shortestDistance(src, entry.getKey());
+                        if (dist > max){
+                            max = dist;
+                        }
+                    }
+                }
+                System.out.println(max);
             }
         }
 
@@ -100,6 +114,7 @@ public class PittGuard {
     
     private void readFile(String fileName) throws IOException {
         Scanner fileScan = new Scanner(new FileInputStream(fileName));
+        //num nodes
         int v = Integer.parseInt(fileScan.nextLine());
         G = new Digraph(v);
         //skip comment line
@@ -114,23 +129,26 @@ public class PittGuard {
         }
         //skip comment line
         fileScan.nextLine();
-        fileScan.nextLine();
 
         while(fileScan.hasNext()){
-            //only add edge if both are vulnerable
+            fileScan.nextLine();
             char from = fileScan.next().charAt(0);
             char to = fileScan.next().charAt(0);
+            double latency = fileScan.nextInt();
+            double encryptn = fileScan.nextInt();
+            //check boolean values
             if(vertices.get(from) == null || vertices.get(to) == null){
-                System.err.println("Error: vulnerability not added, reconfigure file");
+                System.err.println("Error: node vulnerability not added, reconfigure file");
                 System.exit(1);
             }
-            if(vertices.get(from) && vertices.get(to)){
-                G.addEdge(new DirectedEdge(from, to));
-                if(!directed){
-                    G.addEdge(new DirectedEdge(to, from));
-                }
+            double cost = latency * (1 + (3 - encryptn) / 10);
+        
+            G.addEdge(new DirectedEdge(from, to, cost));
+            //System.out.println(from + " " + to + " " + cost);
+            //no directed flag = edge goes both ways
+            if(!directed){
+                G.addEdge(new DirectedEdge(to, from, cost));
             }
-            fileScan.nextLine();
         }
         fileScan.close();
     }
@@ -147,11 +165,30 @@ public class PittGuard {
             path.push(x);
             path.push(index(src));
             //shortest path has this many hops
-            System.out.println(G.distTo[index(dst)]);
+            System.out.println((int)G.distTo[index(dst)]);
             System.exit(0);
         }
     }
 
+    private double shortestDistance(char src, char dst) {
+        int source = index(src);
+        int destination = index(dst);
+        G.dijkstras(src, dst);
+        //no route possible for a vulnerable node
+        if(!G.marked[destination]){
+            System.out.println("INF");
+            return Double.POSITIVE_INFINITY;
+        } else {
+            Stack<Integer> path = new Stack<>();
+            for (int x = destination; x != source; x = G.edgeTo[x]){
+                path.push(x);
+            }
+            //return shortest path cost
+            return G.distTo[destination];  
+        }
+    }
+
+    //turns chars into ints for indexing
     public int index(char c){
         return c - 'A';
     }
@@ -162,7 +199,7 @@ public class PittGuard {
         private LinkedList<DirectedEdge>[] adj;
         private boolean[] marked; // marked[v] = is there an s-v path
         private int[] edgeTo; // edgeTo[v] = previous edge on shortest s-v path
-        private int[] distTo; // distTo[v] = number of edges shortest s-v path
+        private double[] distTo; // distTo[v] = number of edges shortest s-v path
     
     
         public Digraph(int v) {
@@ -189,7 +226,7 @@ public class PittGuard {
         public void bfs(char source) {
             int src = index(source);
             marked = new boolean[this.v];
-            distTo = new int[this.v];
+            distTo = new double[this.v];
             edgeTo = new int[this.v];
             Queue<Integer> q = new LinkedList<Integer>();
             for (int i = 0; i < v; i++){
@@ -203,6 +240,11 @@ public class PittGuard {
                 int v = q.remove();
                 for (DirectedEdge w : adj(v)) {
                     int to = index(w.to());
+                    char toChar = w.to();
+                    //check if node vulnerable
+                    if(!vertices.get(toChar)){
+                        continue;
+                    }
                     if (!marked[to]) {
                         edgeTo[to] = v;
                         distTo[to] = distTo[v] + 1;
@@ -212,25 +254,69 @@ public class PittGuard {
                 }
             }
         }
+        public void dijkstras(char source, char destination) {
+            int src = index(source);
+            int dst = index(destination);
+
+            marked = new boolean[this.v];
+            distTo = new double[this.v]; ///// change dist to float maybe edge???
+            edgeTo = new int[this.v];
+            for (int i = 0; i < v; i++){
+                distTo[i] = INFINITY;
+                marked[i] = false;
+            }
+            distTo[src] = 0;
+            marked[src] = true;
+            int nMarked = 1;
+            int current = src;
+            while (nMarked < this.v) {
+                for (DirectedEdge w : adj(current)) {
+                    int wTo = index(w.to());
+                    if (distTo[current]+w.cost() < distTo[wTo]) {
+                        edgeTo[wTo] = current;
+                        distTo[wTo] = distTo[current]+w.cost();
+                    }
+                }
+                //Find the vertex with minimim path distance
+                //This can be done more effiently using a priority queue!
+                double min = INFINITY;
+                current = -1;
+                for(int i=0; i<distTo.length; i++){
+                    if(marked[i])
+                        continue;
+                    if(distTo[i] < min){
+                        min = distTo[i];
+                        current = i;
+                    }
+                }
+                if(current >= 0){
+                    marked[current] = true;
+                    nMarked++;
+                } else //graph is disconnected
+                    break;
+            }
+        }
     }
       
         private class DirectedEdge {
             private final char v;
             private final char w;
-            
+            private double cost;
     
-            public DirectedEdge(char v, char w) {
-            this.v = v;
-            this.w = w;
+            public DirectedEdge(char v, char w, double cost) {
+                this.v = v;
+                this.w = w;
+                this.cost = cost;
             }
             public char from(){
-            return v;
+                return v;
             }
             public char to(){
-            return w;
+                return w;
+            }
+            public double cost(){
+                return cost;
             }
         }
     
 }
-
-
