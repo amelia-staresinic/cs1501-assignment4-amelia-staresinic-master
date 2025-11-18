@@ -1,6 +1,5 @@
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
@@ -22,6 +21,7 @@ public class PittGuard {
         char dst = ' ';
         //default is false
 
+        //read args
         for(int i = 0; i<args.length; i++){
             switch(args[i]){
                 case "--mode":
@@ -47,10 +47,12 @@ public class PittGuard {
                     System.exit(1);
             }
         }
+        //check requirements
         if(mode == null || fileName == null){
             System.err.println("Error: Missing arguments");
             System.exit(1);
         }
+        //TASK 1: infect
         else if(mode.equals("infect")){
             if(src == ' ' || dst == ' '){
                 System.err.println("Error: Missing arguments");
@@ -75,6 +77,7 @@ public class PittGuard {
                 }
             }
         }
+        //TASK 2: patch
         else if(mode.equals("patch")){
             if(src == ' '){
                 System.err.println("Error: server not specified");
@@ -96,20 +99,10 @@ public class PittGuard {
                         }
                     }
                 }
+                //print out max shortest path or INF (if vulnerable node unreachable)
                 System.out.println(max);
             }
         }
-
-        //read vertices from file, save isVulnerable for each node
-        //read args, call infect with src and dst int after checking vulnerability
-        //readFile adds all edges to Digraph (add something to check directed/undirected??)
-
-        //if mode = infect, task 1
-        //if mode = patch, task 2
-        
-        //each node has vulnerable, T or F
-        //if src !vulnerable or dst !vulnerable return -1
-        //if src == dst return 0
     }
     
     private void readFile(String fileName) throws IOException {
@@ -144,7 +137,6 @@ public class PittGuard {
             double cost = latency * (1 + (3 - encryptn) / 10);
         
             G.addEdge(new DirectedEdge(from, to, cost));
-            //System.out.println(from + " " + to + " " + cost);
             //no directed flag = edge goes both ways
             if(!directed){
                 G.addEdge(new DirectedEdge(to, from, cost));
@@ -259,7 +251,7 @@ public class PittGuard {
             int dst = index(destination);
 
             marked = new boolean[this.v];
-            distTo = new double[this.v]; ///// change dist to float maybe edge???
+            distTo = new double[this.v];
             edgeTo = new int[this.v];
             for (int i = 0; i < v; i++){
                 distTo[i] = INFINITY;
@@ -278,7 +270,6 @@ public class PittGuard {
                     }
                 }
                 //Find the vertex with minimim path distance
-                //This can be done more effiently using a priority queue!
                 double min = INFINITY;
                 current = -1;
                 for(int i=0; i<distTo.length; i++){
