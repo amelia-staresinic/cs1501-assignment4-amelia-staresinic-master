@@ -169,7 +169,7 @@ public class PittGuard {
         //no route possible for a vulnerable node
         if(!G.marked[destination]){
             System.out.println("INF");
-            return Double.POSITIVE_INFINITY;
+            return (double)INFINITY;
         } else {
             Stack<Integer> path = new Stack<>();
             for (int x = destination; x != source; x = G.edgeTo[x]){
