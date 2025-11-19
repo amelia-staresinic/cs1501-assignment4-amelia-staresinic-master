@@ -100,7 +100,12 @@ public class PittGuard {
                     }
                 }
                 //print out max shortest path or INF (if vulnerable node unreachable)
-                System.out.println(max);
+                if(max == (double)INFINITY){
+                    System.out.println("INF");
+                }
+                else{
+                    System.out.println(max);
+                }
             }
         }
     }
