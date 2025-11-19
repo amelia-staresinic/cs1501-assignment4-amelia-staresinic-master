@@ -168,7 +168,6 @@ public class PittGuard {
         G.dijkstras(src, dst);
         //no route possible for a vulnerable node
         if(!G.marked[destination]){
-            System.out.println("INF");
             return (double)INFINITY;
         } else {
             Stack<Integer> path = new Stack<>();
